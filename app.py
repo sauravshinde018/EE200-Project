@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.io import wavfile
+import librosa
 import json
 from collections import Counter
 
-# Import your custom functions
+# Import your custom functions (Ensure these files are in the same folder!)
 from fingerprint import get_spectrogram, get_constellation
 from build_db import generate_hashes
 
@@ -87,17 +87,14 @@ with tab1:
 with tab2:
     st.markdown("### Identify a clip")
 
-    # THIS is the line that was missing!
-    uploaded_file = st.file_uploader("Upload an audio file (.wav)", type=[
-                                     'wav'], key="single_upload")
+    uploaded_file = st.file_uploader("Upload an audio file (.wav or .mp3)", type=[
+                                     'wav', 'mp3'], key="single_upload")
 
     if uploaded_file is not None:
         st.success("File uploaded successfully! Processing...")
 
-        # Read the audio file
-        fs, audio_data = wavfile.read(uploaded_file)
-        if len(audio_data.shape) > 1:
-            audio_data = audio_data.mean(axis=1)  # Convert stereo to mono
+        # Read the audio file using Librosa (safely handles MP3 and automatically converts to Mono)
+        audio_data, fs = librosa.load(uploaded_file, sr=None, mono=True)
 
         # Extract features
         f, t, Sxx_db = get_spectrogram(audio_data, fs)
@@ -112,6 +109,7 @@ with tab2:
             st.markdown("**Spectrogram**")
             fig, ax = plt.subplots(figsize=(6, 4))
             ax.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='magma')
+            # Limit viewing height to most active frequencies
             ax.set_ylim(0, 5000)
             st.pyplot(fig)
 
@@ -144,18 +142,16 @@ with tab2:
 with tab3:
     st.markdown("### Identify many clips at once")
 
-    batch_files = st.file_uploader("Upload multiple .wav files", type=[
-                                   'wav'], accept_multiple_files=True, key="batch_upload")
+    batch_files = st.file_uploader("Upload multiple files", type=[
+                                   'wav', 'mp3'], accept_multiple_files=True, key="batch_upload")
 
     if st.button("Run Batch") and batch_files:
         results = []
         progress_bar = st.progress(0)
 
         for i, file in enumerate(batch_files):
-            # Process each file
-            fs, audio_data = wavfile.read(file)
-            if len(audio_data.shape) > 1:
-                audio_data = audio_data.mean(axis=1)
+            # Process each file using Librosa
+            audio_data, fs = librosa.load(file, sr=None, mono=True)
 
             f, t, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
@@ -163,13 +159,14 @@ with tab3:
 
             best_song, score, _ = find_match(query_hashes, database)
 
+            # Record result
             prediction = best_song if (
                 best_song and score > 10) else "No_Match"
             results.append({"filename": file.name, "prediction": prediction})
 
             progress_bar.progress((i + 1) / len(batch_files))
 
-        # Create Dataframe and Download link
+        # Create Dataframe and Download link exactly to spec
         df_results = pd.DataFrame(results)
         st.markdown("### Results")
         st.dataframe(df_results)

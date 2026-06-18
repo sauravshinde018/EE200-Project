@@ -1,8 +1,7 @@
 import os
 import json
 import numpy as np
-from scipy.io import wavfile
-# Assuming you saved the functions from Part 2 in fingerprint.py
+import librosa
 from fingerprint import get_spectrogram, get_constellation
 
 
@@ -17,16 +16,13 @@ def generate_hashes(time_frames, freq_bins, delay_window=15):
     f_sorted = freq_bins[sort_idx]
 
     for i in range(num_peaks):
-        # Look ahead a few peaks to form pairs
         for j in range(1, delay_window):
             if (i + j) < num_peaks:
                 t1, f1 = int(t_sorted[i]), int(f_sorted[i])
                 t2, f2 = int(t_sorted[i+j]), int(f_sorted[i+j])
 
                 delta_t = t2 - t1
-                # Only pair peaks if they are reasonably close in time
                 if 0 < delta_t < 100:
-                    # Create a string hash: "f1|f2|delta_t"
                     hash_str = f"{f1}|{f2}|{delta_t}"
                     hashes.append((hash_str, t1))
     return hashes
@@ -34,37 +30,39 @@ def generate_hashes(time_frames, freq_bins, delay_window=15):
 
 def build_database(song_folder, output_file="song_database.json"):
     print("Building database... This might take a few minutes.")
-    database = {}  # The inverted index
+    database = {}
+
+    # Track how many songs we actually process
+    songs_processed = 0
 
     for filename in os.listdir(song_folder):
-        if filename.endswith(".wav"):  # Add .mp3 if using librosa instead of scipy
+        # NOW looking for both MP3 and WAV
+        if filename.endswith(".wav") or filename.endswith(".mp3"):
             song_name = filename.rsplit('.', 1)[0]
-            print(f"Processing: {song_name}")
+            print(f"Processing: {song_name}...")
 
             filepath = os.path.join(song_folder, filename)
-            fs, audio_data = wavfile.read(filepath)
 
-            # Convert to mono if stereo
-            if len(audio_data.shape) > 1:
-                audio_data = audio_data.mean(axis=1)
+            # Use librosa instead of scipy to safely load MP3s (forces mono automatically)
+            audio_data, fs = librosa.load(filepath, sr=None, mono=True)
 
-            # Extract features
             _, _, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
             hashes = generate_hashes(t_frames, f_bins)
 
-            # Populate the inverted index
             for hash_str, t1 in hashes:
                 if hash_str not in database:
                     database[hash_str] = []
                 database[hash_str].append({"song": song_name, "time": t1})
 
-    # Save to disk
+            songs_processed += 1
+
     with open(output_file, "w") as f:
         json.dump(database, f)
+
+    print(f"✅ DONE! Processed {songs_processed} songs.")
     print(f"✅ Database saved to {output_file}!")
 
 
-# Run the builder (Make sure you have a folder named 'song_database' with your audio files)
 if __name__ == "__main__":
     build_database("song_database")
