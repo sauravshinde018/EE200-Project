@@ -6,9 +6,11 @@ from fingerprint import get_spectrogram, get_constellation
 
 
 def generate_hashes(time_frames, freq_bins, delay_window=8):
+    """Pairs nearby peaks to create robust (f1, f2, delta_t) hashes."""
     hashes = []
     num_peaks = len(time_frames)
 
+    # Sort peaks chronologically
     sort_idx = np.argsort(time_frames)
     t_sorted = time_frames[sort_idx]
     f_sorted = freq_bins[sort_idx]
@@ -23,21 +25,25 @@ def generate_hashes(time_frames, freq_bins, delay_window=8):
                 if 0 < delta_t < 100:
                     hash_str = f"{f1}|{f2}|{delta_t}"
                     hashes.append((hash_str, t1))
-
     return hashes
 
 
 def build_database(song_folder, output_file="song_database.json"):
     print("Building database... This might take a few minutes.")
     database = {}
+
+    # Track how many songs we actually process
     songs_processed = 0
 
     for filename in os.listdir(song_folder):
+        # NOW looking for both MP3 and WAV
         if filename.endswith(".wav") or filename.endswith(".mp3"):
             song_name = filename.rsplit('.', 1)[0]
             print(f"Processing: {song_name}...")
 
             filepath = os.path.join(song_folder, filename)
+
+            # Use librosa instead of scipy to safely load MP3s (forces mono automatically)
             audio_data, fs = librosa.load(filepath, sr=None, mono=True)
 
             _, _, Sxx_db = get_spectrogram(audio_data, fs)
