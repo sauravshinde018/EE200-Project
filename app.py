@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import librosa
 import json
+import re
 from collections import Counter
 
 # Import your custom functions
@@ -13,6 +14,21 @@ from build_db import generate_hashes
 # Set page config
 st.set_page_config(page_title="Zapptain America",
                    layout="wide", page_icon="🛡️")
+
+# --- UTILITY: TITLE FORMATTER ---
+
+
+def format_title(raw_name):
+    """
+    Magically cleans up filenames for the UI without altering the raw data.
+    Fixes apostrophes (Can_t -> Can't) and replaces remaining underscores with spaces.
+    """
+    if not raw_name or raw_name == "No_Match":
+        return "No Match"
+    # Replace underscores between letters with an apostrophe
+    pretty_name = re.sub(r"(?<=[a-zA-Z])_(?=[a-zA-Z])", "'", raw_name)
+    # Replace any leftover underscores with spaces
+    return pretty_name.replace("_", " ")
 
 # --- DATABASE AND MATCHING LOGIC ---
 
@@ -39,7 +55,6 @@ def find_match(query_hashes, db):
                 song = match['song']
                 db_t = match['time']
 
-                # The crucial step: Calculate the time offset
                 offset = db_t - query_t
 
                 if song not in matches_per_song:
@@ -65,7 +80,7 @@ def find_match(query_hashes, db):
 # --- UI LAYOUT ---
 
 # App Header
-st.title("🛡️ Zapptain America")
+st.title("🎶 Zapptain America")
 st.markdown("### **EE200: Sonic Signatures & Audio Fingerprinting**")
 st.write("Upload a short audio clip, and the system will identify the track using spectrogram constellations and hash alignment. 🚀")
 st.divider()
@@ -94,14 +109,17 @@ with tab1:
             for match in hash_matches:
                 song_counts[match['song']] += 1
 
-        # Convert to a pandas DataFrame for a beautiful table display
-        if song_counts:
-            df_songs = pd.DataFrame(song_counts.items(), columns=[
-                                    "Track Name", "Total Hashes Indexed"])
+        # Build list using the pretty formatted titles
+        formatted_counts = []
+        for raw_name, count in song_counts.items():
+            formatted_counts.append({"Track Name": format_title(
+                raw_name), "Total Hashes Indexed": count})
+
+        if formatted_counts:
+            df_songs = pd.DataFrame(formatted_counts)
             df_songs = df_songs.sort_values(
                 by="Track Name").reset_index(drop=True)
-
-            # Display the dataframe
+            df_songs.index = df_songs.index + 1
             st.dataframe(df_songs, use_container_width=True)
 
 # --- TAB 2: IDENTIFY (Single Clip Mode) ---
@@ -112,16 +130,12 @@ with tab2:
                                      'wav', 'mp3'], key="single_upload")
 
     if uploaded_file is not None:
-        # PLAY THE AUDIO
         st.markdown("**Listen to your upload:**")
         st.audio(uploaded_file)
 
-        # ADDED BUTTON: Execution pauses here until the user clicks the button
         if st.button("🚀 Identify Track", type="primary"):
-
             st.success("⏳ Analyzing the audio signal... Please wait.")
 
-            # Extract features
             audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
             f, t, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
@@ -143,7 +157,6 @@ with tab2:
                 ax.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='magma')
                 ax.set_ylabel('Frequency (Hz)')
                 ax.set_xlabel('Time (s)')
-                # Dark theme formatting
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 ax.tick_params(colors='white')
@@ -157,7 +170,6 @@ with tab2:
                 ax.scatter(t_frames, f_bins, s=5, color='#00FFFF', alpha=0.8)
                 ax.set_ylabel('Frequency Bin')
                 ax.set_xlabel('Time Frame')
-                # Dark theme formatting
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('#1E1E1E')
                 ax.tick_params(colors='white')
@@ -172,29 +184,26 @@ with tab2:
             best_song, score, winning_offsets = find_match(
                 query_hashes, database)
 
-            # Threshold logic
             if best_song and score >= 5:
-                # Calculate Percentage
                 percentage = min((score / total_query_hashes) *
                                  100, 100.0) if total_query_hashes > 0 else 0.0
 
-                # Grand Reveal UI
+                # Formatted Title used for the UI Reveal!
+                pretty_song_name = format_title(best_song)
                 st.markdown(
-                    f"<h2 style='text-align: center; color: #4CAF50;'>🎉 MATCH FOUND: {best_song}</h2>", unsafe_allow_html=True)
+                    f"<h2 style='text-align: center; color: #4CAF50;'>🎉 MATCH FOUND: {pretty_song_name}</h2>", unsafe_allow_html=True)
 
-                # Metrics
                 met1, met2, met3 = st.columns(3)
                 met1.metric(label="Confidence", value=f"{percentage:.1f}%")
                 met2.metric(label="Aligned Hashes",
                             value=f"{score} / {total_query_hashes}")
                 met3.metric(label="Library Tracks Searched", value="All")
 
-                # Histogram Plot
                 fig, ax = plt.subplots(figsize=(10, 3))
                 ax.hist(winning_offsets, bins=100,
                         color='#FFA500', edgecolor='black')
                 ax.set_title(
-                    f"Offset Histogram for {best_song}", color='white')
+                    f"Offset Histogram for {pretty_song_name}", color='white')
                 ax.set_xlabel("Time Offset Difference", color='white')
                 ax.set_ylabel("Matched Hashes", color='white')
                 fig.patch.set_facecolor('none')
@@ -203,8 +212,7 @@ with tab2:
                 st.pyplot(fig)
 
             else:
-                st.error(
-                    "❌ **No definitive match found.** The confidence score was too low or the song is not in the database.")
+                st.error("❌ **No definitive match found.**")
 
 # --- TAB 3: BATCH MODE ---
 with tab3:
@@ -228,10 +236,17 @@ with tab3:
 
             best_song, score, _ = find_match(query_hashes, database)
 
-            prediction = best_song if (
+            raw_prediction = best_song if (
                 best_song and score >= 5) else "No_Match"
-            results.append({"filename": file.name.rsplit(
-                '.', 1)[0], "prediction": prediction})
+
+            # Save the beautiful names for the screen, and the raw names for the CSV
+            results.append({
+                "#": i + 1,
+                "Audio File": file.name,
+                "Identified Track": format_title(raw_prediction),
+                "filename": file.name.rsplit('.', 1)[0],
+                "prediction": raw_prediction
+            })
 
             progress_bar.progress(
                 (i + 1) / len(batch_files), text=f"Processed {i+1} of {len(batch_files)} files...")
@@ -240,9 +255,15 @@ with tab3:
 
         df_results = pd.DataFrame(results)
         st.markdown("#### 📊 Results Preview")
-        st.dataframe(df_results, use_container_width=True)
 
-        csv = df_results.to_csv(index=False).encode('utf-8')
+        # UI Table: Only show the pretty columns
+        st.dataframe(df_results[["#", "Audio File", "Identified Track"]],
+                     hide_index=True, use_container_width=True)
+
+        # Download CSV: Only export the raw filename and prediction columns!
+        csv = df_results[["filename", "prediction"]].to_csv(
+            index=False).encode('utf-8')
+
         st.download_button(
             label="⬇️ Download `results.csv`",
             data=csv,
