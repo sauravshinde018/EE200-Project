@@ -10,9 +10,9 @@ from collections import Counter
 from fingerprint import get_spectrogram, get_constellation
 from build_db import generate_hashes
 
-# Set page config
-st.set_page_config(page_title="EE200: Audio Fingerprinting",
-                   layout="wide", page_icon="🎵")
+# Set page config - Updated for Zapptain America!
+st.set_page_config(page_title="Zapptain America",
+                   layout="wide", page_icon="🛡️")
 
 # --- DATABASE AND MATCHING LOGIC ---
 
@@ -61,89 +61,139 @@ def find_match(query_hashes, db):
 
     return best_song, best_score, matches_per_song.get(best_song, [])
 
+
 # --- UI LAYOUT ---
 
-
-st.title("🎵 EE200: Audio Fingerprinting")
-st.markdown(
-    "Index a library of songs as spectrogram fingerprints, then identify any short clip against it.")
+# App Header
+st.title("🛡️ Zapptain America")
+st.markdown("### **EE200: Sonic Signatures & Audio Fingerprinting**")
+st.write("Upload a short audio clip, and the system will identify the track using spectrogram constellations and hash alignment. 🚀")
+st.divider()
 
 if not database:
-    st.error("⚠️ Database not found! Please run `python build_db.py` locally and upload `song_database.json` to GitHub.")
+    st.error("⚠️ **Database not found!** Please run `python build_db.py` locally and upload `song_database.json` to GitHub.")
 
-tab1, tab2, tab3 = st.tabs(["📚 LIBRARY", "🔍 IDENTIFY", "📋 BATCH"])
+# Tabs
+tab1, tab2, tab3 = st.tabs(
+    ["📚 THE LIBRARY", "🔍 IDENTIFY CLIP", "📋 BATCH PROCESSING"])
 
 # --- TAB 1: LIBRARY ---
 with tab1:
-    st.markdown("### The Database")
+    st.markdown("### 🗄️ Indexed Database")
     st.info("Song indexing is managed by the admin. The database is pre-loaded with the provided song library.")
     if database:
         st.success(
-            f"Database loaded successfully! Contains {len(database)} unique hashes.")
+            f"✅ **Database loaded successfully!** The system is currently tracking **{len(database):,}** unique hash patterns.")
 
 # --- TAB 2: IDENTIFY (Single Clip Mode) ---
 with tab2:
-    st.markdown("### Identify a clip")
+    st.markdown("### 🎧 Identify a Mystery Clip")
 
-    uploaded_file = st.file_uploader("Upload an audio file (.wav or .mp3)", type=[
+    uploaded_file = st.file_uploader("Drop an audio file here (.wav or .mp3)", type=[
                                      'wav', 'mp3'], key="single_upload")
 
     if uploaded_file is not None:
-        st.success("File uploaded! Processing... Please wait.")
+        # PLAY THE AUDIO
+        st.markdown("**Listen to your upload:**")
+        st.audio(uploaded_file)
 
-        # CRITICAL FIX: Force sr=22050 to match the database exactly
-        audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
+        st.success("⏳ File uploaded! Processing the audio signal... Please wait.")
 
         # Extract features
+        audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
         f, t, Sxx_db = get_spectrogram(audio_data, fs)
         t_frames, f_bins = get_constellation(Sxx_db)
         query_hashes = generate_hashes(t_frames, f_bins)
+        total_query_hashes = len(query_hashes)
+
+        st.divider()
 
         # 1. Feature Visualization
-        st.markdown("### STEP 1 - FEATURE EXTRACTION")
+        st.markdown("### 🔬 STEP 1: Feature Extraction")
+        st.write(
+            "Converting the audio waveform into a time-frequency map, then isolating the most prominent peaks.")
+
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("**Spectrogram**")
+            st.markdown("#### 🌊 Spectrogram")
             fig, ax = plt.subplots(figsize=(6, 4))
             ax.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='magma')
+            ax.set_ylabel('Frequency (Hz)')
+            ax.set_xlabel('Time (s)')
+            # Dark theme formatting
+            fig.patch.set_facecolor('none')
+            ax.set_facecolor('none')
+            ax.tick_params(colors='white')
+            ax.xaxis.label.set_color('white')
+            ax.yaxis.label.set_color('white')
             st.pyplot(fig)
 
         with col2:
-            st.markdown("**Constellation Peaks**")
+            st.markdown("#### ✨ Constellation Map")
             fig, ax = plt.subplots(figsize=(6, 4))
-            ax.scatter(t_frames, f_bins, s=5, color='cyan', alpha=0.8)
-            ax.set_facecolor('black')
+            ax.scatter(t_frames, f_bins, s=5, color='#00FFFF', alpha=0.8)
+            ax.set_ylabel('Frequency Bin')
+            ax.set_xlabel('Time Frame')
+            # Dark theme formatting
+            fig.patch.set_facecolor('none')
+            ax.set_facecolor('#1E1E1E')
+            ax.tick_params(colors='white')
+            ax.xaxis.label.set_color('white')
+            ax.yaxis.label.set_color('white')
             st.pyplot(fig)
+
+        st.divider()
 
         # 2. Matching Visualization
-        st.markdown("### STEP 2 - THE PROOF (Alignment Spike)")
+        st.markdown("### 🎯 STEP 2: The Proof (Alignment Spike)")
         best_song, score, winning_offsets = find_match(query_hashes, database)
 
-        # Lowered threshold to 5 for better detection of short clips
+        # Threshold logic
         if best_song and score >= 5:
+            # Calculate Percentage
+            percentage = min((score / total_query_hashes) * 100,
+                             100.0) if total_query_hashes > 0 else 0.0
+
+            # Grand Reveal UI
+            st.markdown(
+                f"<h2 style='text-align: center; color: #4CAF50;'>🎉 MATCH FOUND: {best_song}</h2>", unsafe_allow_html=True)
+
+            # Metrics
+            met1, met2, met3 = st.columns(3)
+            met1.metric(label="Confidence", value=f"{percentage:.1f}%")
+            met2.metric(label="Aligned Hashes",
+                        value=f"{score} / {total_query_hashes}")
+            met3.metric(label="Library Tracks Searched", value="All")
+
+            # Histogram Plot
             fig, ax = plt.subplots(figsize=(10, 3))
-            ax.hist(winning_offsets, bins=100, color='orange')
-            ax.set_title(f"Offset Histogram for {best_song}")
-            ax.set_xlabel("Time Offset")
-            ax.set_ylabel("Number of Matched Hashes")
+            ax.hist(winning_offsets, bins=100,
+                    color='#FFA500', edgecolor='black')
+            ax.set_title(f"Offset Histogram for {best_song}", color='white')
+            ax.set_xlabel("Time Offset Difference", color='white')
+            ax.set_ylabel("Matched Hashes", color='white')
+            fig.patch.set_facecolor('none')
+            ax.set_facecolor('#1E1E1E')
+            ax.tick_params(colors='white')
             st.pyplot(fig)
 
-            st.success(
-                f"🎉 MATCH FOUND: **{best_song}** (Confidence Score: {score})")
         else:
-            st.error("No definitive match found. Confidence score was too low.")
+            st.error(
+                "❌ **No definitive match found.** The confidence score was too low or the song is not in the database.")
 
 # --- TAB 3: BATCH MODE ---
 with tab3:
-    st.markdown("### Identify many clips at once")
+    st.markdown("### 🚀 Identify Many Clips at Once")
+    st.write("Upload a set of query clips. Each is identified against the indexed library, and results are written to a standardized `results.csv`.")
 
-    batch_files = st.file_uploader("Upload multiple files", type=[
+    batch_files = st.file_uploader("Upload multiple audio files", type=[
                                    'wav', 'mp3'], accept_multiple_files=True, key="batch_upload")
 
-    if st.button("Run Batch") and batch_files:
+    if st.button("▶️ Run Batch Analysis", type="primary") and batch_files:
         results = []
-        progress_bar = st.progress(0)
+        progress_text = "Analyzing audio files. Please wait..."
+        progress_bar = st.progress(0, text=progress_text)
 
         for i, file in enumerate(batch_files):
             audio_data, fs = librosa.load(file, sr=22050, mono=True)
@@ -159,16 +209,20 @@ with tab3:
             results.append({"filename": file.name.rsplit(
                 '.', 1)[0], "prediction": prediction})
 
-            progress_bar.progress((i + 1) / len(batch_files))
+            progress_bar.progress(
+                (i + 1) / len(batch_files), text=f"Processed {i+1} of {len(batch_files)} files...")
+
+        st.success("✅ **Batch Processing Complete!**")
 
         df_results = pd.DataFrame(results)
-        st.markdown("### Results")
-        st.dataframe(df_results)
+        st.markdown("#### 📊 Results Preview")
+        st.dataframe(df_results, use_container_width=True)
 
         csv = df_results.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="⬇️ Download results.csv",
+            label="⬇️ Download `results.csv`",
             data=csv,
             file_name='results.csv',
             mime='text/csv',
+            type="primary"
         )
