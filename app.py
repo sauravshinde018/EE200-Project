@@ -14,7 +14,7 @@ from build_db import generate_hashes
 
 # Set page config
 st.set_page_config(page_title="Zapptain America",
-                   layout="wide", page_icon="🛡️")
+                   layout="wide", page_icon="🎶")
 
 # --- UTILITY: TITLE FORMATTER ---
 
@@ -83,7 +83,7 @@ def find_match(query_hashes, db):
 # --- UI LAYOUT ---
 
 # App Header
-st.title("🛡️ Zapptain America")
+st.title("🎶 Zapptain America")
 st.markdown("### **EE200: Sonic Signatures & Audio Fingerprinting**")
 st.write("Upload a short audio clip, and the system will identify the track using spectrogram constellations and hash alignment. 🚀")
 st.divider()
