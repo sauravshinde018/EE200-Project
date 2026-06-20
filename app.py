@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import librosa
 import json
 import re
@@ -30,14 +31,15 @@ st.markdown("""
         font-family: 'JetBrains Mono', monospace !important;
     }
     
-    /* Section Headers */
+    /* Section Headers - FIXED MARGINS HERE */
     .step-header {
         font-size: 0.85rem;
         letter-spacing: 2px;
         text-transform: uppercase;
         color: #00FFFF;
-        margin-bottom: -10px;
+        margin-bottom: 15px; 
         margin-top: 30px;
+        font-weight: 600;
     }
     
     /* Hero Banner */
@@ -205,7 +207,7 @@ tab1, tab2, tab3 = st.tabs(["📚 LIBRARY", "🔍 IDENTIFY", "📋 BATCH"])
 
 # --- TAB 1: LIBRARY ---
 with tab1:
-    st.markdown("<p class='step-header'>Indexed Database</p>",
+    st.markdown("<div class='step-header'>Indexed Database</div>",
                 unsafe_allow_html=True)
     st.info("Song indexing is managed by the admin. The database is pre-loaded with the provided song library.")
 
@@ -230,7 +232,7 @@ with tab1:
 
 # --- TAB 2: IDENTIFY ---
 with tab2:
-    st.markdown("<p class='step-header'>Identify a Clip</p>",
+    st.markdown("<div class='step-header'>Identify a Clip</div>",
                 unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Upload an audio file (.wav or .mp3)", type=[
                                      'wav', 'mp3'], key="single_upload", label_visibility="collapsed")
@@ -306,7 +308,7 @@ with tab2:
                 """, unsafe_allow_html=True)
 
                 st.markdown(
-                    "<p class='step-header'>Candidate Scores</p><br>", unsafe_allow_html=True)
+                    "<div class='step-header'>Candidate Scores</div>", unsafe_allow_html=True)
                 max_score = winner['score']
                 for cand in candidates[:5]:  # Top 5
                     width = (cand['score'] / max_score) * 100
@@ -327,7 +329,7 @@ with tab2:
 
             # --- VIZ 1: SPECTROGRAM & CONSTELLATION (PLOTLY) ---
             st.markdown(
-                "<p class='step-header'>STEP 1 • FEATURE EXTRACTION</p>", unsafe_allow_html=True)
+                "<div class='step-header'>STEP 1 • FEATURE EXTRACTION</div>", unsafe_allow_html=True)
             st.markdown("### From spectrogram to constellation")
             st.markdown(
                 f"<p style='color: #8b949e;'>The clip was converted into a time-frequency map (left). From that rich image, only the <b>{len(t_frames)} most prominent peaks</b> were kept (right). Discarding amplitude and phase makes the fingerprint robust to EQ, volume changes, and mild noise.</p>", unsafe_allow_html=True)
@@ -363,7 +365,7 @@ with tab2:
 
             # --- VIZ 2: WHERE IN THE SONG? ---
             st.markdown(
-                "<p class='step-header'>STEP 2 • DATABASE SEARCH</p>", unsafe_allow_html=True)
+                "<div class='step-header'>STEP 2 • DATABASE SEARCH</div>", unsafe_allow_html=True)
             st.markdown("### Where in the song?")
 
             # Reconstruct the full song fingerprint
@@ -394,7 +396,7 @@ with tab2:
 
             # --- VIZ 3: ALIGNMENT SPIKE ---
             st.markdown(
-                "<p class='step-header'>STEP 3 • THE PROOF</p>", unsafe_allow_html=True)
+                "<div class='step-header'>STEP 3 • THE PROOF</div>", unsafe_allow_html=True)
             st.markdown("### The alignment spike")
             st.markdown(
                 f"<p style='color: #8b949e;'>Every matched hash votes for a time offset. Chance matches scatter randomly, forming a flat noise floor. A genuine match makes them converge: <b style='color:#FFA500'>{winner['score']} hashes agreed on a single offset.</b> That spike cannot be a coincidence.</p>", unsafe_allow_html=True)
@@ -432,7 +434,7 @@ with tab2:
 
 # --- TAB 3: BATCH MODE ---
 with tab3:
-    st.markdown("<p class='step-header'>Batch Processing</p>",
+    st.markdown("<div class='step-header'>Batch Processing</div>",
                 unsafe_allow_html=True)
     st.write("Upload a set of query clips. Each is identified against the indexed library, and results are written to a standardized `results.csv`.")
 
