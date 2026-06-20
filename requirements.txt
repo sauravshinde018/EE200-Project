@@ -1,6 +1,7 @@
 streamlit
-pandas
-numpy
-matplotlib
-librosa
 scipy
+matplotlib
+numpy
+pandas
+librosa
+plotly
