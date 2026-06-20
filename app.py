@@ -6,7 +6,7 @@ import librosa
 import json
 from collections import Counter
 
-# Import your custom functions (Ensure these files are in the same folder!)
+# Import your custom functions
 from fingerprint import get_spectrogram, get_constellation
 from build_db import generate_hashes
 
@@ -16,8 +16,6 @@ st.set_page_config(page_title="EE200: Audio Fingerprinting",
 
 # --- DATABASE AND MATCHING LOGIC ---
 
-# Load Database once using Streamlit caching for speed
-
 
 @st.cache_data
 def load_database():
@@ -25,7 +23,7 @@ def load_database():
         with open("song_database.json", "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        return {}  # Return empty if database isn't built yet
+        return {}
 
 
 database = load_database()
@@ -91,10 +89,10 @@ with tab2:
                                      'wav', 'mp3'], key="single_upload")
 
     if uploaded_file is not None:
-        st.success("File uploaded successfully! Processing...")
+        st.success("File uploaded! Processing... Please wait.")
 
-        # Read the audio file using Librosa (safely handles MP3 and automatically converts to Mono)
-        audio_data, fs = librosa.load(uploaded_file, sr=None, mono=True)
+        # CRITICAL FIX: Force sr=22050 to match the database exactly
+        audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
 
         # Extract features
         f, t, Sxx_db = get_spectrogram(audio_data, fs)
@@ -109,8 +107,6 @@ with tab2:
             st.markdown("**Spectrogram**")
             fig, ax = plt.subplots(figsize=(6, 4))
             ax.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='magma')
-            # Limit viewing height to most active frequencies
-            ax.set_ylim(0, 5000)
             st.pyplot(fig)
 
         with col2:
@@ -118,14 +114,14 @@ with tab2:
             fig, ax = plt.subplots(figsize=(6, 4))
             ax.scatter(t_frames, f_bins, s=5, color='cyan', alpha=0.8)
             ax.set_facecolor('black')
-            ax.set_ylim(0, 5000)
             st.pyplot(fig)
 
         # 2. Matching Visualization
         st.markdown("### STEP 2 - THE PROOF (Alignment Spike)")
         best_song, score, winning_offsets = find_match(query_hashes, database)
 
-        if best_song and score > 10:  # Minimum threshold to prevent noise matches
+        # Lowered threshold to 5 for better detection of short clips
+        if best_song and score >= 5:
             fig, ax = plt.subplots(figsize=(10, 3))
             ax.hist(winning_offsets, bins=100, color='orange')
             ax.set_title(f"Offset Histogram for {best_song}")
@@ -136,7 +132,7 @@ with tab2:
             st.success(
                 f"🎉 MATCH FOUND: **{best_song}** (Confidence Score: {score})")
         else:
-            st.error("No definitive match found in the database.")
+            st.error("No definitive match found. Confidence score was too low.")
 
 # --- TAB 3: BATCH MODE ---
 with tab3:
@@ -150,8 +146,7 @@ with tab3:
         progress_bar = st.progress(0)
 
         for i, file in enumerate(batch_files):
-            # Process each file using Librosa
-            audio_data, fs = librosa.load(file, sr=None, mono=True)
+            audio_data, fs = librosa.load(file, sr=22050, mono=True)
 
             f, t, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
@@ -159,14 +154,13 @@ with tab3:
 
             best_song, score, _ = find_match(query_hashes, database)
 
-            # Record result
             prediction = best_song if (
-                best_song and score > 10) else "No_Match"
-            results.append({"filename": file.name, "prediction": prediction})
+                best_song and score >= 5) else "No_Match"
+            results.append({"filename": file.name.rsplit(
+                '.', 1)[0], "prediction": prediction})
 
             progress_bar.progress((i + 1) / len(batch_files))
 
-        # Create Dataframe and Download link exactly to spec
         df_results = pd.DataFrame(results)
         st.markdown("### Results")
         st.dataframe(df_results)

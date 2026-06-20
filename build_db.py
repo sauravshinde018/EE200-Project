@@ -5,7 +5,7 @@ import librosa
 from fingerprint import get_spectrogram, get_constellation
 
 
-def generate_hashes(time_frames, freq_bins, delay_window=8):
+def generate_hashes(time_frames, freq_bins, delay_window=10):
     """Pairs nearby peaks to create robust (f1, f2, delta_t) hashes."""
     hashes = []
     num_peaks = len(time_frames)
@@ -31,20 +31,18 @@ def generate_hashes(time_frames, freq_bins, delay_window=8):
 def build_database(song_folder, output_file="song_database.json"):
     print("Building database... This might take a few minutes.")
     database = {}
-
-    # Track how many songs we actually process
     songs_processed = 0
 
     for filename in os.listdir(song_folder):
-        # NOW looking for both MP3 and WAV
-        if filename.endswith(".wav") or filename.endswith(".mp3"):
+        # Safely checks for valid audio files
+        if filename.lower().endswith((".wav", ".mp3")):
             song_name = filename.rsplit('.', 1)[0]
             print(f"Processing: {song_name}...")
 
             filepath = os.path.join(song_folder, filename)
 
-            # Use librosa instead of scipy to safely load MP3s (forces mono automatically)
-            audio_data, fs = librosa.load(filepath, sr=None, mono=True)
+            # CRITICAL FIX: Force exact sample rate of 22050 Hz
+            audio_data, fs = librosa.load(filepath, sr=22050, mono=True)
 
             _, _, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
@@ -53,6 +51,7 @@ def build_database(song_folder, output_file="song_database.json"):
             for hash_str, t1 in hashes:
                 if hash_str not in database:
                     database[hash_str] = []
+                # Append song name and the absolute time this hash occurred
                 database[hash_str].append({"song": song_name, "time": t1})
 
             songs_processed += 1
@@ -61,7 +60,8 @@ def build_database(song_folder, output_file="song_database.json"):
         json.dump(database, f)
 
     print(f"✅ DONE! Processed {songs_processed} songs.")
-    print(f"✅ Database saved to {output_file}!")
+    print(
+        f"✅ Database saved to {output_file}. Check the file size to ensure it is < 100MB!")
 
 
 if __name__ == "__main__":
