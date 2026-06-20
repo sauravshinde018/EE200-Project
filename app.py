@@ -10,7 +10,7 @@ from collections import Counter
 from fingerprint import get_spectrogram, get_constellation
 from build_db import generate_hashes
 
-# Set page config - Updated for Zapptain America!
+# Set page config
 st.set_page_config(page_title="Zapptain America",
                    layout="wide", page_icon="🛡️")
 
@@ -81,9 +81,28 @@ tab1, tab2, tab3 = st.tabs(
 with tab1:
     st.markdown("### 🗄️ Indexed Database")
     st.info("Song indexing is managed by the admin. The database is pre-loaded with the provided song library.")
+
     if database:
         st.success(
             f"✅ **Database loaded successfully!** The system is currently tracking **{len(database):,}** unique hash patterns.")
+
+        st.markdown("#### 🎵 Tracks in Library")
+
+        # Calculate how many hashes belong to each song
+        song_counts = Counter()
+        for hash_matches in database.values():
+            for match in hash_matches:
+                song_counts[match['song']] += 1
+
+        # Convert to a pandas DataFrame for a beautiful table display
+        if song_counts:
+            df_songs = pd.DataFrame(song_counts.items(), columns=[
+                                    "Track Name", "Total Hashes Indexed"])
+            df_songs = df_songs.sort_values(
+                by="Track Name").reset_index(drop=True)
+
+            # Display the dataframe
+            st.dataframe(df_songs, use_container_width=True)
 
 # --- TAB 2: IDENTIFY (Single Clip Mode) ---
 with tab2:
@@ -97,90 +116,95 @@ with tab2:
         st.markdown("**Listen to your upload:**")
         st.audio(uploaded_file)
 
-        st.success("⏳ File uploaded! Processing the audio signal... Please wait.")
+        # ADDED BUTTON: Execution pauses here until the user clicks the button
+        if st.button("🚀 Identify Track", type="primary"):
 
-        # Extract features
-        audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
-        f, t, Sxx_db = get_spectrogram(audio_data, fs)
-        t_frames, f_bins = get_constellation(Sxx_db)
-        query_hashes = generate_hashes(t_frames, f_bins)
-        total_query_hashes = len(query_hashes)
+            st.success("⏳ Analyzing the audio signal... Please wait.")
 
-        st.divider()
+            # Extract features
+            audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
+            f, t, Sxx_db = get_spectrogram(audio_data, fs)
+            t_frames, f_bins = get_constellation(Sxx_db)
+            query_hashes = generate_hashes(t_frames, f_bins)
+            total_query_hashes = len(query_hashes)
 
-        # 1. Feature Visualization
-        st.markdown("### 🔬 STEP 1: Feature Extraction")
-        st.write(
-            "Converting the audio waveform into a time-frequency map, then isolating the most prominent peaks.")
+            st.divider()
 
-        col1, col2 = st.columns(2)
+            # 1. Feature Visualization
+            st.markdown("### 🔬 STEP 1: Feature Extraction")
+            st.write(
+                "Converting the audio waveform into a time-frequency map, then isolating the most prominent peaks.")
 
-        with col1:
-            st.markdown("#### 🌊 Spectrogram")
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='magma')
-            ax.set_ylabel('Frequency (Hz)')
-            ax.set_xlabel('Time (s)')
-            # Dark theme formatting
-            fig.patch.set_facecolor('none')
-            ax.set_facecolor('none')
-            ax.tick_params(colors='white')
-            ax.xaxis.label.set_color('white')
-            ax.yaxis.label.set_color('white')
-            st.pyplot(fig)
+            col1, col2 = st.columns(2)
 
-        with col2:
-            st.markdown("#### ✨ Constellation Map")
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.scatter(t_frames, f_bins, s=5, color='#00FFFF', alpha=0.8)
-            ax.set_ylabel('Frequency Bin')
-            ax.set_xlabel('Time Frame')
-            # Dark theme formatting
-            fig.patch.set_facecolor('none')
-            ax.set_facecolor('#1E1E1E')
-            ax.tick_params(colors='white')
-            ax.xaxis.label.set_color('white')
-            ax.yaxis.label.set_color('white')
-            st.pyplot(fig)
+            with col1:
+                st.markdown("#### 🌊 Spectrogram")
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.pcolormesh(t, f, Sxx_db, shading='gouraud', cmap='magma')
+                ax.set_ylabel('Frequency (Hz)')
+                ax.set_xlabel('Time (s)')
+                # Dark theme formatting
+                fig.patch.set_facecolor('none')
+                ax.set_facecolor('none')
+                ax.tick_params(colors='white')
+                ax.xaxis.label.set_color('white')
+                ax.yaxis.label.set_color('white')
+                st.pyplot(fig)
 
-        st.divider()
+            with col2:
+                st.markdown("#### ✨ Constellation Map")
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.scatter(t_frames, f_bins, s=5, color='#00FFFF', alpha=0.8)
+                ax.set_ylabel('Frequency Bin')
+                ax.set_xlabel('Time Frame')
+                # Dark theme formatting
+                fig.patch.set_facecolor('none')
+                ax.set_facecolor('#1E1E1E')
+                ax.tick_params(colors='white')
+                ax.xaxis.label.set_color('white')
+                ax.yaxis.label.set_color('white')
+                st.pyplot(fig)
 
-        # 2. Matching Visualization
-        st.markdown("### 🎯 STEP 2: The Proof (Alignment Spike)")
-        best_song, score, winning_offsets = find_match(query_hashes, database)
+            st.divider()
 
-        # Threshold logic
-        if best_song and score >= 5:
-            # Calculate Percentage
-            percentage = min((score / total_query_hashes) * 100,
-                             100.0) if total_query_hashes > 0 else 0.0
+            # 2. Matching Visualization
+            st.markdown("### 🎯 STEP 2: The Proof (Alignment Spike)")
+            best_song, score, winning_offsets = find_match(
+                query_hashes, database)
 
-            # Grand Reveal UI
-            st.markdown(
-                f"<h2 style='text-align: center; color: #4CAF50;'>🎉 MATCH FOUND: {best_song}</h2>", unsafe_allow_html=True)
+            # Threshold logic
+            if best_song and score >= 5:
+                # Calculate Percentage
+                percentage = min((score / total_query_hashes) *
+                                 100, 100.0) if total_query_hashes > 0 else 0.0
 
-            # Metrics
-            met1, met2, met3 = st.columns(3)
-            met1.metric(label="Confidence", value=f"{percentage:.1f}%")
-            met2.metric(label="Aligned Hashes",
-                        value=f"{score} / {total_query_hashes}")
-            met3.metric(label="Library Tracks Searched", value="All")
+                # Grand Reveal UI
+                st.markdown(
+                    f"<h2 style='text-align: center; color: #4CAF50;'>🎉 MATCH FOUND: {best_song}</h2>", unsafe_allow_html=True)
 
-            # Histogram Plot
-            fig, ax = plt.subplots(figsize=(10, 3))
-            ax.hist(winning_offsets, bins=100,
-                    color='#FFA500', edgecolor='black')
-            ax.set_title(f"Offset Histogram for {best_song}", color='white')
-            ax.set_xlabel("Time Offset Difference", color='white')
-            ax.set_ylabel("Matched Hashes", color='white')
-            fig.patch.set_facecolor('none')
-            ax.set_facecolor('#1E1E1E')
-            ax.tick_params(colors='white')
-            st.pyplot(fig)
+                # Metrics
+                met1, met2, met3 = st.columns(3)
+                met1.metric(label="Confidence", value=f"{percentage:.1f}%")
+                met2.metric(label="Aligned Hashes",
+                            value=f"{score} / {total_query_hashes}")
+                met3.metric(label="Library Tracks Searched", value="All")
 
-        else:
-            st.error(
-                "❌ **No definitive match found.** The confidence score was too low or the song is not in the database.")
+                # Histogram Plot
+                fig, ax = plt.subplots(figsize=(10, 3))
+                ax.hist(winning_offsets, bins=100,
+                        color='#FFA500', edgecolor='black')
+                ax.set_title(
+                    f"Offset Histogram for {best_song}", color='white')
+                ax.set_xlabel("Time Offset Difference", color='white')
+                ax.set_ylabel("Matched Hashes", color='white')
+                fig.patch.set_facecolor('none')
+                ax.set_facecolor('#1E1E1E')
+                ax.tick_params(colors='white')
+                st.pyplot(fig)
+
+            else:
+                st.error(
+                    "❌ **No definitive match found.** The confidence score was too low or the song is not in the database.")
 
 # --- TAB 3: BATCH MODE ---
 with tab3:
