@@ -13,7 +13,7 @@ from build_db import generate_hashes
 
 # Set page config
 st.set_page_config(page_title="Zapptain America",
-                   layout="wide", page_icon="🛡️")
+                   layout="wide", page_icon="🎶")
 
 # --- UTILITY: TITLE FORMATTER ---
 
