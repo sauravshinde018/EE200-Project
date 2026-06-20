@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import librosa
 import json
 import re
+import gc
 from collections import Counter
 
 # Import your custom functions
@@ -13,7 +14,7 @@ from build_db import generate_hashes
 
 # Set page config
 st.set_page_config(page_title="Zapptain America",
-                   layout="wide", page_icon="🎶")
+                   layout="wide", page_icon="🛡️")
 
 # --- UTILITY: TITLE FORMATTER ---
 
@@ -32,8 +33,10 @@ def format_title(raw_name):
 
 # --- DATABASE AND MATCHING LOGIC ---
 
+# CRITICAL FIX: cache_resource ensures the database is only loaded once in RAM
 
-@st.cache_data
+
+@st.cache_resource
 def load_database():
     try:
         with open("song_database.json", "r") as f:
@@ -80,7 +83,7 @@ def find_match(query_hashes, db):
 # --- UI LAYOUT ---
 
 # App Header
-st.title("🎶 Zapptain America")
+st.title("🛡️ Zapptain America")
 st.markdown("### **EE200: Sonic Signatures & Audio Fingerprinting**")
 st.write("Upload a short audio clip, and the system will identify the track using spectrogram constellations and hash alignment. 🚀")
 st.divider()
@@ -250,6 +253,10 @@ with tab3:
 
             progress_bar.progress(
                 (i + 1) / len(batch_files), text=f"Processed {i+1} of {len(batch_files)} files...")
+
+            # CRITICAL MEMORY FIX: Force Python to delete the large audio math arrays from RAM
+            del audio_data, Sxx_db, t_frames, f_bins, query_hashes
+            gc.collect()
 
         st.success("✅ **Batch Processing Complete!**")
 
