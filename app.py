@@ -332,7 +332,7 @@ with tab2:
                 "<div class='step-header'>STEP 1 • FEATURE EXTRACTION</div>", unsafe_allow_html=True)
             st.markdown("### From spectrogram to constellation")
             st.markdown(
-                f"<p style='color: #8b949e;'>The clip was converted into a time-frequency map (left). From that rich image, only the <b>{len(t_frames)} most prominent peaks</b> were kept (right). Discarding amplitude and phase makes the fingerprint robust to EQ, volume changes, and mild noise.</p>", unsafe_allow_html=True)
+                f"<p style='color: #8b949e;'>The clip was converted into a time-frequency map (left). From that rich image, only the <b style='color:#00FFFF'>{len(t_frames)} most prominent peaks</b> were kept (right). Discarding amplitude and phase makes the fingerprint robust to EQ, volume changes, and mild noise.</p>", unsafe_allow_html=True)
 
             c1, c2 = st.columns(2)
 
@@ -373,7 +373,7 @@ with tab2:
                 database, winner['song'])
             query_len_frames = max(t_frames) if len(t_frames) > 0 else 0
 
-            st.markdown(f"<p style='color: #8b949e;'>The <b>{total_query_hashes:,} fingerprint hashes</b> were looked up against every indexed track. Below is the full fingerprint of <i>{pretty_song}</i> reconstructed from the database. The highlighted window is exactly where the query clip sits inside the full song.</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #8b949e;'>The <b style='color:#00FFFF'>{total_query_hashes:,} fingerprint hashes</b> were looked up against every indexed track. Below is the full fingerprint of <i>{pretty_song}</i> reconstructed from the database. The highlighted window is exactly where the query clip sits inside the full song.</p>", unsafe_allow_html=True)
 
             fig_where = go.Figure(data=go.Scatter(
                 x=full_t, y=full_f, mode='markers', marker=dict(color='#00FFFF', size=2, opacity=0.5)))
