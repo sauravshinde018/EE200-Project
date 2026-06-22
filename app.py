@@ -7,7 +7,7 @@ import json
 import re
 import gc
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 import plotly.graph_objects as go
 
 # Import your custom functions
@@ -153,27 +153,25 @@ database = load_database()
 
 
 def find_match_leaderboard(query_hashes, db):
-    """Returns top candidates instead of just the best song."""
-    matches_per_song = {}
+    """Returns top candidates instead of just the best song. Optimized with defaultdict."""
+    matches_per_song = defaultdict(Counter)
+
     for query_hash, query_t in query_hashes:
         if query_hash in db:
             for match in db[query_hash]:
                 song, db_t = match['song'], match['time']
                 offset = db_t - query_t
-                if song not in matches_per_song:
-                    matches_per_song[song] = []
-                matches_per_song[song].append(offset)
+                matches_per_song[song][offset] += 1
 
     candidates = []
-    for song, offsets in matches_per_song.items():
-        offset_counts = Counter(offsets)
+    for song, offset_counts in matches_per_song.items():
         if offset_counts:
             best_offset, count = offset_counts.most_common(1)[0]
             candidates.append({
                 'song': song,
                 'score': count,
                 'offset': best_offset,
-                'all_offsets': offsets
+                'all_offsets': list(offset_counts.elements())
             })
 
     # Sort by score descending
@@ -181,10 +179,11 @@ def find_match_leaderboard(query_hashes, db):
     return candidates
 
 
-def get_full_song_constellation(db, song_name):
-    """Reconstructs the constellation of a full song from the stored hashes."""
+@st.cache_data
+def get_full_song_constellation(_db, song_name):
+    """Reconstructs the constellation of a full song from the stored hashes. Cached to prevent UI freezing."""
     t_vals, f_vals = [], []
-    for hash_str, matches in db.items():
+    for hash_str, matches in _db.items():
         for match in matches:
             if match['song'] == song_name:
                 f1 = int(hash_str.split('|')[0])
@@ -192,8 +191,8 @@ def get_full_song_constellation(db, song_name):
                 f_vals.append(f1)
     return t_vals, f_vals
 
-
 # --- UI LAYOUT ---
+
 
 st.title("🎶 Zapptain America")
 st.markdown("### **EE200: Audio Fingerprinting**")
@@ -241,41 +240,46 @@ with tab2:
 
         if st.button("🚀 IDENTIFY TRACK", type="primary", use_container_width=True):
 
-            # --- START TELEMETRY ---
-            t_start = time.time()
+            # Wrap the heavy lifting in a Streamlit spinner
+            with st.spinner("🎧 Extracting audio fingerprint and searching the database..."):
 
-            # 1. Audio Loading
-            t0 = time.time()
-            audio_data, fs = librosa.load(uploaded_file, sr=22050, mono=True)
-            t_load = (time.time() - t0) * 1000
+                # --- START TELEMETRY ---
+                t_start = time.time()
 
-            # 2. Spectrogram
-            t0 = time.time()
-            f, t, Sxx_db = get_spectrogram(audio_data, fs)
-            t_spectro = (time.time() - t0) * 1000
+                # 1. Audio Loading (Optimized with kaiser_fast)
+                t0 = time.time()
+                audio_data, fs = librosa.load(
+                    uploaded_file, sr=22050, mono=True, res_type='kaiser_fast')
+                t_load = (time.time() - t0) * 1000
 
-            # 3. Constellation
-            t0 = time.time()
-            t_frames, f_bins = get_constellation(Sxx_db)
-            t_const = (time.time() - t0) * 1000
+                # 2. Spectrogram
+                t0 = time.time()
+                f, t, Sxx_db = get_spectrogram(audio_data, fs)
+                t_spectro = (time.time() - t0) * 1000
 
-            # 4. Hashing
-            t0 = time.time()
-            query_hashes = generate_hashes(t_frames, f_bins)
-            t_hash = (time.time() - t0) * 1000
+                # 3. Constellation
+                t0 = time.time()
+                t_frames, f_bins = get_constellation(Sxx_db)
+                t_const = (time.time() - t0) * 1000
 
-            # 5. DB Lookup & Scoring
-            t0 = time.time()
-            candidates = find_match_leaderboard(query_hashes, database)
-            t_db = (time.time() - t0) * 1000
+                # 4. Hashing
+                t0 = time.time()
+                query_hashes = generate_hashes(t_frames, f_bins)
+                t_hash = (time.time() - t0) * 1000
 
-            t_total = (time.time() - t_start) * 1000
+                # 5. DB Lookup & Scoring
+                t0 = time.time()
+                candidates = find_match_leaderboard(query_hashes, database)
+                t_db = (time.time() - t0) * 1000
 
-            total_query_hashes = len(query_hashes)
-            winner = candidates[0] if candidates else None
-            is_match = winner and winner['score'] >= 5
+                t_total = (time.time() - t_start) * 1000
+
+                total_query_hashes = len(query_hashes)
+                winner = candidates[0] if candidates else None
+                is_match = winner and winner['score'] >= 5
 
             # --- TELEMETRY DASHBOARD ---
+            # (Keep this OUTSIDE the spinner block so it renders immediately after the spinner disappears)
             m1, m2, m3, m4, m5, m6 = st.columns(6)
 
             m1.markdown(
@@ -348,8 +352,8 @@ with tab2:
             )
             c1.plotly_chart(fig_spec, use_container_width=True)
 
-            # Plotly Constellation
-            fig_const = go.Figure(data=go.Scatter(
+            # Plotly Constellation (Optimized to WebGL)
+            fig_const = go.Figure(data=go.Scattergl(
                 x=t_frames, y=f_bins, mode='markers', marker=dict(color='#00FFFF', size=3, opacity=0.7)))
             fig_const.update_layout(
                 plot_bgcolor='#0e1117', paper_bgcolor='rgba(0,0,0,0)',
@@ -375,7 +379,8 @@ with tab2:
 
             st.markdown(f"<p style='color: #8b949e;'>The <b>{total_query_hashes:,} fingerprint hashes</b> were looked up against every indexed track. Below is the full fingerprint of <i>{pretty_song}</i> reconstructed from the database. The highlighted window is exactly where the query clip sits inside the full song.</p>", unsafe_allow_html=True)
 
-            fig_where = go.Figure(data=go.Scatter(
+            # Plotly Full Constellation (Optimized to WebGL)
+            fig_where = go.Figure(data=go.Scattergl(
                 x=full_t, y=full_f, mode='markers', marker=dict(color='#00FFFF', size=2, opacity=0.5)))
 
             # Add highlight bounding box
@@ -447,7 +452,9 @@ with tab3:
             0, text="Analyzing audio files. Please wait...")
 
         for i, file in enumerate(batch_files):
-            audio_data, fs = librosa.load(file, sr=22050, mono=True)
+            # Optimized Librosa Load
+            audio_data, fs = librosa.load(
+                file, sr=22050, mono=True, res_type='kaiser_fast')
             f, t, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
             query_hashes = generate_hashes(t_frames, f_bins)
