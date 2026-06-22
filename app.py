@@ -240,16 +240,14 @@ with tab2:
 
         if st.button("🚀 IDENTIFY TRACK", type="primary", use_container_width=True):
 
-            # Wrap the heavy lifting in a Streamlit spinner
             with st.spinner("🎧 Extracting audio fingerprint and searching the database..."):
-
                 # --- START TELEMETRY ---
                 t_start = time.time()
 
-                # 1. Audio Loading (Optimized with kaiser_fast)
+                # 1. Audio Loading (Optimized with soxr_qq instead of kaiser_fast)
                 t0 = time.time()
                 audio_data, fs = librosa.load(
-                    uploaded_file, sr=22050, mono=True, res_type='kaiser_fast')
+                    uploaded_file, sr=22050, mono=True, res_type='soxr_qq')
                 t_load = (time.time() - t0) * 1000
 
                 # 2. Spectrogram
@@ -279,7 +277,6 @@ with tab2:
                 is_match = winner and winner['score'] >= 5
 
             # --- TELEMETRY DASHBOARD ---
-            # (Keep this OUTSIDE the spinner block so it renders immediately after the spinner disappears)
             m1, m2, m3, m4, m5, m6 = st.columns(6)
 
             m1.markdown(
@@ -452,9 +449,9 @@ with tab3:
             0, text="Analyzing audio files. Please wait...")
 
         for i, file in enumerate(batch_files):
-            # Optimized Librosa Load
+            # Optimized Librosa Load with soxr_qq
             audio_data, fs = librosa.load(
-                file, sr=22050, mono=True, res_type='kaiser_fast')
+                file, sr=22050, mono=True, res_type='soxr_qq')
             f, t, Sxx_db = get_spectrogram(audio_data, fs)
             t_frames, f_bins = get_constellation(Sxx_db)
             query_hashes = generate_hashes(t_frames, f_bins)
