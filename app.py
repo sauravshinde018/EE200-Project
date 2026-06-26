@@ -238,13 +238,23 @@ with tab2:
 
     if uploaded_file is not None:
 
+        # Audio Player Feature
+        st.markdown(
+            "<p style='font-size: 0.9rem; color: #8b949e; margin-bottom: 5px;'>Preview clip:</p>", unsafe_allow_html=True)
+        st.audio(uploaded_file)
+        st.write("")  # Slight padding before the button
+
         if st.button("🚀 IDENTIFY TRACK", type="primary", use_container_width=True):
 
             with st.spinner("🎧 Extracting audio fingerprint and searching the database..."):
+
+                # CRITICAL: Reset file pointer to beginning after st.audio reads it
+                uploaded_file.seek(0)
+
                 # --- START TELEMETRY ---
                 t_start = time.time()
 
-                # 1. Audio Loading (Optimized with soxr_qq instead of kaiser_fast)
+                # 1. Audio Loading (Optimized with soxr_qq)
                 t0 = time.time()
                 audio_data, fs = librosa.load(
                     uploaded_file, sr=22050, mono=True, res_type='soxr_qq')
@@ -442,6 +452,15 @@ with tab3:
 
     batch_files = st.file_uploader("Upload multiple audio files", type=[
                                    'wav', 'mp3'], accept_multiple_files=True, key="batch_upload")
+
+    if batch_files:
+        # Audio Player feature for Batch mode
+        with st.expander("🎵 Preview Uploaded Batch Files"):
+            for bf in batch_files:
+                st.write(f"**{bf.name}**")
+                st.audio(bf)
+                # CRITICAL: Reset file pointer to beginning for each file after audio player reads it
+                bf.seek(0)
 
     if st.button("▶️ RUN BATCH ANALYSIS", type="primary") and batch_files:
         results = []
